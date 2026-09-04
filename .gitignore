@@ -1,0 +1,39 @@
+# Secrets
+.secrets/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+
+# Logs and runtime output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+coverage/
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Agent tooling (local only)
+.agents/
+.claude/
+docs/adr/
+docs/agents/
+CLAUDE.md
+CONTEXT.md
+skills-lock.json

@@ -1,8 +1,12 @@
-# bing-mcp — Bing Webmaster Tools MCP server
+# bing-webmaster-mcp
 
-MCP server (stdio) that gives Claude Code direct access to this site's Bing
-Webmaster Tools data plus IndexNow submission (PRD 0044). Research/ops
-tooling like `gsc-mcp`: own dependencies, never part of the Astro build.
+MCP server (stdio) for [Bing Webmaster Tools](https://www.bing.com/webmasters):
+search performance, sitemaps, URL submission, IndexNow, crawl diagnostics,
+keyword volumes and inbound links, for Claude Code, Claude Desktop, Cursor and
+any other MCP client.
+
+Plain Node.js, two dependencies, no build step. The only network calls go to
+`ssl.bing.com` and `api.indexnow.org`.
 
 ## Tools
 
@@ -20,63 +24,92 @@ tooling like `gsc-mcp`: own dependencies, never part of the Astro build.
 | `indexnow`           | Instant, quota-free "URL added/updated" ping to the IndexNow network (Bing, Yandex, …) |
 | `crawl_stats`        | Bingbot activity: pages crawled, HTTP code buckets, robots blocks                      |
 | `crawl_issues`       | Concrete URLs with crawl problems and their HTTP codes                                 |
-| `keyword_research`   | Bing search volumes for a term (es/ES defaults); `related: true` → related keywords    |
+| `keyword_research`   | Bing search volumes for a term in a market; `related: true` → related keywords         |
 | `backlinks`          | Inbound-link counts per page; with `url`, the linking pages + anchor texts             |
 
-Every site-scoped tool takes an optional `siteUrl`; omitted, it uses the
-`BING_SITE_URL` env var (set in [.mcp.json](../../.mcp.json) to
-`https://eligefranquicia.es/` — the **apex**, because that is how the
-property is registered in Bing: domain-scoped and DNS-verified, covering the
-`www` subdomain the site actually serves. The same-origin checks are
-subdomain-aware for the same reason).
+Every site-scoped tool takes an optional `siteUrl`. When omitted it uses the
+`BING_SITE_URL` environment variable. Pass the site exactly as it is
+registered in Bing Webmaster Tools. For a domain-scoped property that is the
+apex (`https://example.com/`), and URLs on its subdomains are accepted by the
+submission tools.
 
-## One-time setup (API key)
+Responses are JSON. Bing's `{"d": …}` wrapper and WCF `/Date(ms)/` timestamps
+are normalized before the tool returns.
 
-1. Sign in to [Bing Webmaster Tools](https://www.bing.com/webmasters) with
-   the account that owns the verified site.
-2. Open **Settings → API Access**, accept the terms and click **Generate
-   API Key**. One key per user; it covers all the user's verified sites.
-3. Save the key as `.secrets/bing-api-key.txt` at the repo root —
-   `.secrets/` is git-ignored; never commit the key. (Alternatively set the
-   `BING_API_KEY` env var, which overrides the file.)
+## Setup
 
-Without the key the server still starts and registers its tools; every call
+### 1. Get an API key
+
+1. Sign in to [Bing Webmaster Tools](https://www.bing.com/webmasters) with the
+   account that owns the verified site.
+2. Open **Settings → API Access**, accept the terms and click **Generate API
+   Key**. One key per user; it covers all the user's verified sites.
+
+Without a key the server still starts and registers its tools; every call
 answers with these setup steps instead of data.
 
-### IndexNow key (already provisioned, public by design)
+### 2. Add the server to your client
 
-The IndexNow protocol verifies ownership by fetching
-`https://www.eligefranquicia.es/<key>.txt`, so the key file lives
-**committed** in `public/` — it is not a secret; hosting it _is_ the proof.
-`INDEXNOW_KEY_FILE` in `.mcp.json` points at it. The `indexnow` tool only
-works once the site (with that file) is deployed; until then it returns the
-403 explanation.
+Claude Code (`.mcp.json` in the project, or `claude mcp add`):
+
+```json
+{
+  "mcpServers": {
+    "bing-webmaster": {
+      "command": "npx",
+      "args": ["-y", "bing-webmaster-mcp"],
+      "env": {
+        "BING_API_KEY": "your-api-key",
+        "BING_SITE_URL": "https://example.com/"
+      }
+    }
+  }
+}
+```
+
+Claude Desktop (`claude_desktop_config.json`) and Cursor (`.cursor/mcp.json`)
+take the same block.
+
+If the config file is committed to version control, keep the key out of it:
+save the key in a file outside the repo and set `BING_API_KEY_FILE` to its
+path instead of `BING_API_KEY`.
+
+### 3. IndexNow (optional)
+
+The [IndexNow](https://www.indexnow.org/) protocol verifies ownership by
+fetching `https://<your-host>/<key>.txt`, so the key is public by design.
+
+1. Generate a key: 8–128 characters of `a-z`, `A-Z`, `0-9` and `-`.
+2. Host it as `<key>.txt` at the root of the site (it must return the key as
+   plain text).
+3. Keep a local copy of that file and set `INDEXNOW_KEY_FILE` to its path.
+   The file name must match its content.
+
+If the key file is not yet reachable, the `indexnow` tool returns the 403
+explanation instead of a bare error.
 
 ## Environment
 
-- `BING_API_KEY_FILE` — path to the API-key file (relative paths resolve
-  from the process working directory, i.e. the repo root when launched via
-  `.mcp.json`). `BING_API_KEY` overrides it.
-- `BING_SITE_URL` — default site for every tool (the apex property).
-- `INDEXNOW_SITE_URL` — the deployed canonical host that serves the IndexNow
-  key file (`https://www.eligefranquicia.es/`); governs the `indexnow`
-  tool's origin check and key location. Falls back to `BING_SITE_URL`.
-- `INDEXNOW_KEY_FILE` — path to the committed IndexNow key file
-  (`public/<key>.txt`).
+| Variable            | Meaning                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `BING_API_KEY`      | The API key. Overrides `BING_API_KEY_FILE`.                                                                                      |
+| `BING_API_KEY_FILE` | Path to a file containing the API key. Relative paths resolve from the process working directory.                                |
+| `BING_SITE_URL`     | Default site for every site-scoped tool, as registered in Bing Webmaster Tools.                                                  |
+| `INDEXNOW_KEY_FILE` | Path to your local copy of the IndexNow key file (`<key>.txt`).                                                                  |
+| `INDEXNOW_SITE_URL` | The host that serves the key file, when it differs from `BING_SITE_URL` (e.g. property on the apex, site served on `www`). Governs the `indexnow` tool's origin check and key location. |
 
 ## Development
 
 ```sh
-npm test                # node --test — offline, network mocked
-npm run test:bing       # same, from the repo root
-node server.mjs         # run manually (stdio; speaks MCP JSON-RPC)
+npm install
+npm test            # node --test — offline, network mocked
+node server.mjs     # run manually (stdio; speaks MCP JSON-RPC)
 ```
 
-`server.mjs` wires the MCP tools, `lib.mjs` holds the pure
-validation/shaping helpers (fully unit-tested), and `bing.mjs` is the only
-file that talks to the network (plain `fetch` against
-`https://ssl.bing.com/webmaster/api.svc/json/…` and
-`https://api.indexnow.org/indexnow`). API responses arrive wrapped in
-`{"d": …}` with WCF `/Date(ms)/` timestamps; both are normalized before the
-tool returns.
-# bing-webmaster-mcp
+`server.mjs` wires the MCP tools, `lib.mjs` holds the pure validation and
+shaping helpers (unit-tested), and `bing.mjs` is the only file that talks to
+the network.
+
+## License
+
+MIT

@@ -1,0 +1,24 @@
+{
+  "name": "bing-webmaster-mcp",
+  "version": "0.1.0",
+  "description": "MCP server (stdio) for Bing Webmaster Tools: query/page stats, sitemaps, URL submission + IndexNow, crawl diagnostics, keyword & link research",
+  "keywords": ["mcp", "mcp-server", "bing", "bing-webmaster-tools", "indexnow", "seo", "model-context-protocol"],
+  "license": "MIT",
+  "author": "Ismael Jiménez",
+  "repository": { "type": "git", "url": "git+https://github.com/ismaelJimenez/bing-webmaster-mcp.git" },
+  "homepage": "https://github.com/ismaelJimenez/bing-webmaster-mcp#readme",
+  "bugs": { "url": "https://github.com/ismaelJimenez/bing-webmaster-mcp/issues" },
+  "type": "module",
+  "main": "server.mjs",
+  "bin": { "bing-webmaster-mcp": "server.mjs" },
+  "files": ["server.mjs", "bing.mjs", "lib.mjs", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}
