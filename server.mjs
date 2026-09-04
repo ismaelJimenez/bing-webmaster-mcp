@@ -4,7 +4,8 @@
 // list_sitemaps, submit_sitemap, remove_sitemap, url_info, submit_urls,
 // indexnow, crawl_stats, crawl_issues, keyword_research, backlinks.
 
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -379,8 +380,16 @@ export function createServer({
   return server;
 }
 
-const isMain =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// npm installs the bin as a symlink, so compare real paths: argv[1] is the
+// link, import.meta.url the target.
+const isMain = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 if (isMain) {
   await createServer().connect(new StdioServerTransport());
 }
